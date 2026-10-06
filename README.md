@@ -24,7 +24,7 @@ opencode plugin add github:matthewpetela/opencode-jev-plugin
 opencode plugin list
 ```
 
-This works while the repo is **private** if your Git credentials can access it; other people will need access until you make it public. Never embed an access token in the URL. The tool is registered under the `jev` namespace as `jev_evaluate` (effective tool ID `jev_jev_evaluate`). OpenCode manages the global plugin entry and Git-backed updates; no npm publication is necessary.
+This works while the repo is **private** if your Git credentials can access it; other people will need access until you make it public. Never embed an access token in the URL. The tool is registered under the `jev` namespace as `jev_evaluate` (effective tool ID `jev_jev_evaluate`). OpenCode manages the global plugin entry and Git-backed updates.
 
 For a project-specific install, put a Git package spec in the project's `opencode.jsonc`:
 
@@ -43,8 +43,6 @@ git clone https://github.com/matthewpetela/opencode-jev-plugin.git \
 ```
 
 The Git clone also needs GitHub access while the repo is private. Do **not** both clone into an auto-discovered plugin directory and add the Git package entry; choose one installation method. If a new tool does not appear, run `opencode plugin check` or `opencode service restart`.
-
-`"plugins": ["opencode-jev-plugin"]` is an **npm package name**, not a GitHub repository reference; don't use it unless this package is actually published to npm.
 
 ## Credentials
 
