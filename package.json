@@ -1,7 +1,7 @@
 {
-  "name": "opencode-jev-plugin",
-  "version": "0.1.0",
-  "description": "OpenCode V2 plugin exposing Jev (System One) structured decisions as a tool: typed questions, calibrated probabilities, no text parsing",
+  "name": "opencode-decisions-plugin",
+  "version": "0.2.0",
+  "description": "OpenCode V2 tools for Jev and OpenAI Decisions: typed questions, calibrated probabilities, and image inputs",
   "type": "module",
   "main": "index.js",
   "files": [
@@ -12,6 +12,8 @@
   "keywords": [
     "opencode",
     "opencode-plugin",
+    "decisions",
+    "openai",
     "jev",
     "system-one",
     "typesafe",
@@ -25,12 +27,15 @@
   "author": "Matthew Petela",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/matthewpetela/opencode-jev-plugin.git"
+    "url": "git+https://github.com/matthewpetela/opencode-decisions-plugin.git"
   },
   "bugs": {
-    "url": "https://github.com/matthewpetela/opencode-jev-plugin/issues"
+    "url": "https://github.com/matthewpetela/opencode-decisions-plugin/issues"
   },
-  "homepage": "https://github.com/matthewpetela/opencode-jev-plugin#readme",
+  "homepage": "https://github.com/matthewpetela/opencode-decisions-plugin#readme",
+  "scripts": {
+    "test": "node --test index.test.js"
+  },
   "engines": {
     "opencode": ">=2.0.0"
   },

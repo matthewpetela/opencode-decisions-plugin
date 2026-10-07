@@ -1,52 +1,52 @@
-# opencode-jev-plugin
+# OpenCode Decisions plugin
 
-Use [Jev](https://docs.typesafe.ai/) — a System One decision model — from an OpenCode V2 agent via one tool.
+Evaluate text with [Jev](https://docs.typesafe.ai/) or text and images with [OpenAI Decisions](https://developers.openai.com/api/docs/guides/decisions) from an OpenCode V2 agent.
 
-Jev does not generate text. It evaluates a piece of text against **typed questions** and returns structured answers with probabilities and confidence. The plugin forwards questions to the [OpenCode Console Jev endpoint](https://opencode.ai/v2/docs/console/models/#jev) and returns the result; the calling agent chooses the questions and interprets the answers.
+Both APIs answer **typed questions** with probabilities rather than generating prose. The plugin forwards provider-native questions to [OpenCode Console Jev](https://opencode.ai/v2/docs/console/models/#jev) or OpenAI's `/v1/decisions` endpoint; the calling agent chooses categories and interprets the answers. `decisions_evaluate` defaults to Jev; select `provider: "openai"` for image inputs or OpenAI's `predicate`/`choice`/`score` API. The existing `jev_jev_evaluate` tool remains available for compatibility.
 
 ## Why a tool?
 
-Jev returns decisions rather than assistant messages or tool calls, so it cannot serve as an OpenCode agent's conversational model. The agent uses this tool to ask Jev questions while keeping responsibility for the taxonomy and final labels.
+Decision models return answers rather than assistant messages or tool calls, so they cannot serve as an OpenCode agent's conversational model. The agent uses the tool while keeping responsibility for the taxonomy and final labels.
 
 No separate Jev subagent or skill is required.
 
 ## Requirements
 
 - OpenCode **v2.0.0+** (developed against 2.0.18)
-- An [OpenCode Console API key](https://opencode.ai/console) — see [Credentials](#credentials). Free and paid Jev models are currently listed in the [Console model catalog](https://opencode.ai/v2/docs/console/models/#jev).
+- An [OpenCode Console API key](https://opencode.ai/console) for Jev, or an [OpenAI API key](https://platform.openai.com/api-keys) for OpenAI Decisions — see [Credentials](#credentials).
 
 ## Install
 
 **Recommended:** install directly from GitHub with OpenCode's plugin manager:
 
 ```sh
-opencode plugin add github:matthewpetela/opencode-jev-plugin
+opencode plugin add github:matthewpetela/opencode-decisions-plugin
 opencode plugin list
 ```
 
-The tool is registered under the `jev` namespace as `jev_evaluate` (effective tool ID `jev_jev_evaluate`). OpenCode manages the global plugin entry and Git-backed updates. Never embed an access token in the repository URL.
+The new tool ID is `decisions_evaluate`; the original `jev_jev_evaluate` is retained for existing agents. OpenCode manages the global plugin entry and Git-backed updates. Never embed an access token in the repository URL. If you installed the old Git package, remove its configured entry before adding the renamed package to avoid loading both copies.
 
 For a project-specific install, put a Git package spec in the project's `opencode.jsonc`:
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
-  "plugins": ["github:matthewpetela/opencode-jev-plugin"]
+  "plugins": ["github:matthewpetela/opencode-decisions-plugin"]
 }
 ```
 
 Or clone for local development into a documented auto-discovery location:
 
 ```sh
-git clone https://github.com/matthewpetela/opencode-jev-plugin.git \
-  ~/.config/opencode/plugins/jev
+git clone https://github.com/matthewpetela/opencode-decisions-plugin.git \
+  ~/.config/opencode/plugins/decisions
 ```
 
 Do **not** both clone into an auto-discovered plugin directory and add the Git package entry; choose one installation method. If a new tool does not appear, run `opencode plugin check` or `opencode service restart`.
 
 ## Credentials
 
-Resolved in this order, first hit wins:
+**Jev** credentials are resolved in this order, first hit wins:
 
 1. `options.apiKey` (supported, but **do not** put a literal key in a checked-in config)
 2. `OPENCODE_API_KEY` (or `OPENCODE_CONSOLE_API_KEY`) in the OpenCode **server process** environment
@@ -55,11 +55,57 @@ Resolved in this order, first hit wins:
 
 If you have already run `/connect` in the TUI and added the OpenCode pay-as-you-go provider, the plugin can reuse that key on systems using the standard local auth file. The file format is an OpenCode implementation detail; if automatic discovery does not work, set `OPENCODE_API_KEY` for the server instead. Credentials are resolved when the plugin loads; restart/reload it after rotating a key.
 
-No credential is bundled or written into this repository. The `state` and questions are sent to OpenCode Console; review its [privacy terms](https://opencode.ai/v2/docs/console/models/#privacy) before submitting sensitive material.
+**OpenAI Decisions** uses `options.openaiApiKey` or `OPENAI_API_KEY` in the OpenCode server process. An OpenCode Console key is **not** an OpenAI key. Set only the credential for the provider you use; an absent Jev credential does not prevent OpenAI calls. No credential is bundled or written into this repository. The input and questions go to the selected provider; review the [Console privacy terms](https://opencode.ai/v2/docs/console/models/#privacy) and [OpenAI data controls](https://developers.openai.com/api/docs/guides/your-data) before sending sensitive material.
 
-## Usage
+## Usage: Decisions tool
 
-The tool takes one `state` (the text to evaluate) and a map of questions. Ask
+`decisions_evaluate` accepts `provider` (`jev` by default), `input`, `questions`, and optional `model`. It returns the selected provider's answers without changing the answer shape: Jev uses a question-ID map; OpenAI uses an array of named questions. Use one provider's native question format per call.
+
+### Jev text (default)
+
+```jsonc
+{
+  "input": "I was charged twice for my order.",
+  "questions": {
+    "billing": { "type": "noul", "instructions": "Does this request concern a billing error?" }
+  }
+}
+```
+
+Jev supports `noul`, `choice` (with a criteria map), and `score` (with a rubric array). Models: `jev-1.13` (default) or `jev-1.13-free`.
+
+### OpenAI text or image
+
+```jsonc
+{
+  "provider": "openai",
+  "input": [{
+    "role": "user",
+    "content": [
+      { "type": "input_text", "text": "Inspect the product in this photo." },
+      { "type": "input_image", "image_url": "data:image/png;base64,<BASE64_IMAGE_BYTES>" }
+    ]
+  }],
+  "questions": [
+    { "type": "predicate", "name": "visible_damage", "instructions": "Is the product visibly damaged?" },
+    { "type": "choice", "name": "category", "instructions": "What kind of product is this?", "choices": [
+      { "value": "electronics", "description": "An electronic device." },
+      { "value": "other", "description": "Anything else." }
+    ] },
+    { "type": "score", "name": "severity", "instructions": "How severe is the damage?", "levels": [
+      { "label": "None", "description": "No visible damage." },
+      { "label": "Minor", "description": "Cosmetic damage only." },
+      { "label": "Major", "description": "Product appears unusable." }
+    ] }
+  ]
+}
+```
+
+Replace the placeholder with an actual inline base64 image data URL. The Decisions API does **not** accept hosted image URLs or file IDs. For text-only calls, `input` may simply be a string. OpenAI currently supports only `gpt-6-luna`; its `predicate` probability corresponds to Jev's `noul`, but the schemas and answer shapes differ. Image input with the default Jev provider is rejected; explicitly select OpenAI.
+
+## Legacy Jev tool
+
+`jev_jev_evaluate` keeps its original `state` and question-map format. It takes one `state` (the text to evaluate) and a map of questions. Ask
 every question you need in a single call: Jev evaluates them in parallel and in
 isolation, so adding questions barely changes latency and never causes
 interference between questions.
@@ -134,12 +180,13 @@ a definitive security or fraud verdict.
 
 ## Models and cost
 
-| Model | Cost (input) | Notes |
+| Provider/model | Cost (input) | Notes |
 | --- | --- | --- |
-| `jev-1.13-free` | Free | Limited-time free tier |
-| `jev-1.13` | $0.042 / 1M tokens | Output is free |
+| Jev `jev-1.13-free` | Free | Limited-time free tier |
+| Jev `jev-1.13` | $0.042 / 1M tokens | Output is free |
+| OpenAI `gpt-6-luna` | $0.10 / 1M tokens | Decisions API public beta; input-only pricing, with regional/long-context adjustments |
 
-Pricing and free-tier availability may change. Check the [current Console pricing](https://opencode.ai/v2/docs/console/models/#pricing) before relying on these figures.
+Pricing and availability may change. Check [Console pricing](https://opencode.ai/v2/docs/console/models/#pricing) and the [OpenAI Decisions guide](https://developers.openai.com/api/docs/guides/decisions#pricing-and-availability) before relying on these figures.
 
 ## Options
 
@@ -150,7 +197,7 @@ Configure via the object form in `opencode.jsonc`:
   "$schema": "https://opencode.ai/config.json",
   "plugins": [
     {
-      "package": "github:matthewpetela/opencode-jev-plugin",
+      "package": "github:matthewpetela/opencode-decisions-plugin",
       "options": {
         "model": "jev-1.13-free",
         "timeoutMs": 60000
@@ -162,15 +209,18 @@ Configure via the object form in `opencode.jsonc`:
 
 | Option | Default | Purpose |
 | --- | --- | --- |
-| `apiKey` | — | Override credential resolution; avoid literals in shared config |
-| `endpoint` | `https://opencode.ai/zen/v1/systemone` | Point at a proxy or a self-hosted gateway |
-| `model` | `jev-1.13` | Default model when a call omits `model` |
+| `apiKey` | — | Override Jev credential resolution; avoid literals in shared config |
+| `openaiApiKey` | `OPENAI_API_KEY` | OpenAI credential; avoid literals in shared config |
+| `endpoint` | `https://opencode.ai/zen/v1/systemone` | Jev endpoint |
+| `openaiEndpoint` | `https://api.openai.com/v1/decisions` | OpenAI Decisions endpoint |
+| `model` | `jev-1.13` | Default Jev model when a call omits `model` |
 | `timeoutMs` | `60000` | Request timeout |
 
-A `model` argument on an individual call overrides the configured default.
-The default model is the paid tier. Set `model` to `jev-1.13-free` to use the
-currently available free tier. Only change `endpoint` to a service you trust:
-the plugin sends both your bearer key and the text being evaluated to that URL.
+A `model` argument on an individual Jev call overrides the configured default.
+The default Jev model is the paid tier. Set `model` to `jev-1.13-free` to use the
+currently available free tier. OpenAI calls use `gpt-6-luna`. Only change an
+endpoint to a service you trust: the plugin sends its provider's bearer key
+and the input being evaluated to that URL.
 
 ## Multi-label behavior
 
@@ -188,7 +238,7 @@ within that question; they are not independent probabilities of each label.
 ## Development
 
 This is a dependency-free JavaScript plugin for OpenCode V2. Its entry point is
-`index.js`, as declared in `package.json`. See the [V2 plugin API](https://opencode.ai/v2/docs/build/plugins/) for the tool registration contract. OpenCode reloads watched local plugins automatically; restart the service if changes do not appear.
+`index.js`, as declared in `package.json`. Run `node --test` for mocked request tests. See the [V2 plugin API](https://opencode.ai/v2/docs/build/plugins/) for the tool registration contract. OpenCode reloads watched local plugins automatically; restart the service if changes do not appear.
 
 ## License
 
